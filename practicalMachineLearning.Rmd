@@ -1,0 +1,102 @@
+---
+title: "practical machine learning project"
+author: "Brian Costa"
+date: "Monday, December 14, 2015"
+output: html_document
+---
+
+#Summary
+
+This project attempts to predict the manner in which the subjects performed an exercise (the "classe" variable in the data).  The model is a basic random forest model, and achieves fairly good accuracy.
+
+
+#Data Processing
+
+Pre-processing the data was required before a model could be fit.  First was removing any columns with missing data.  Second was removing other columns that seemed unnecessary and that contributed to excessive processing time training the model.  Third was coercing all numbers into number and any factors into the factor type.
+
+Once the training set was finialized the test set was processed to have the identical predictors.
+
+
+```{r}
+
+rawTrainingData<-read.csv("data/pml-training.csv")
+trainingData<-rawTrainingData[, ! apply( rawTrainingData , 2 , function(x) any(is.na(x)) )  ]
+trainingData<-trainingData[,-which(names(trainingData) %in% c("kurtosis_roll_belt","kurtosis_picth_belt","kurtosis_yaw_belt","skewness_roll_belt","skewness_roll_belt.1","skewness_yaw_belt","max_yaw_belt","min_yaw_belt","amplitude_yaw_belt","kurtosis_roll_arm","kurtosis_picth_arm","kurtosis_yaw_arm","skewness_roll_arm","skewness_pitch_arm","skewness_yaw_arm","kurtosis_roll_dumbbell","kurtosis_picth_dumbbell","kurtosis_yaw_dumbbell","skewness_roll_dumbbell","skewness_pitch_dumbbell","skewness_yaw_dumbbell","max_yaw_dumbbell","min_yaw_dumbbell","amplitude_yaw_dumbbell","kurtosis_roll_forearm","kurtosis_picth_forearm","kurtosis_yaw_forearm","skewness_roll_forearm","skewness_pitch_forearm","skewness_yaw_forearm","max_yaw_forearm","min_yaw_forearm","amplitude_yaw_forearm", "X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp"))]
+
+
+trainingData$new_window<-as.factor(trainingData$new_window)
+trainingData$classe<-as.factor(trainingData$classe)
+
+
+rawTestingData<-read.csv("data/pml-testing.csv")
+trainingData$new_window<-as.factor(trainingData$new_window)
+testingData<-rawTestingData[,(names(trainingData))[-55]]
+
+
+```
+
+# Fit a model
+
+Fit a model to all the data and check the fit.  This was a mess - attempting to use the caret package with a number of different model types and parameter selections was neccessary just to find a model that would train successfully.
+
+Finally the use of train was eliminated in favor of a call to randomForest.  This brought the execution time down.
+
+randomForest was choosen as the model to try becuase of it's accuracy.  The risk in this case is that it will overfit the training data and do poorly on the blind test cases.
+
+
+```{r}
+#library(doParallel)
+library(caret)
+library(randomForest)
+set.seed(1234)
+
+tControl<-trainControl(method = "repeatedcv",number=10,repeats=10)
+
+#run model in parallel
+#cl<-makeCluster(detectCores())
+#registerDoParallel(cl) 
+#modelFit<-train(classe ~.,data=trainingData, method="rf", trControl=tControl, verbose=FALSE)
+#stopCluster(cl)
+
+modelFit<-randomForest(classe ~.,data=trainingData, method="rf", trControl=tControl, verbose=FALSE)
+modelFit
+
+```
+
+#Summary
+
+The model fits with an OOB expected error of approx. 0.15%, which is pretty good.  Hopefully it will do as well on the blind test cases...
+
+
+# Prediction
+
+
+
+Applying the trained model to the test data
+
+```{r}
+# Use the function from the instructions for creating the files
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+
+# make sure the factor predictors have all levels represented
+levels(testingData$new_window)<-levels(trainingData$new_window)
+pred <-predict(modelFit,testingData)
+
+pred
+
+pml_write_files(pred)
+```
+
+
+#Submission
+
+The files generated from the function will be submitted.
+
+
